@@ -138,10 +138,14 @@ airflow/        Airflow 3 image + daily reconciliation DAG
 
 ## Status and known gaps
 
-This is a scaffold. The Python tests pass, the Airflow DAG loads cleanly, and `dbt parse`/`compile` succeed. The full pipeline has not yet been run end to end against live AWS and Snowflake. Things most likely to need a tweak on the first run:
+**Verified so far**
+- Local CDC path runs end to end: Postgres → Debezium → Kafka, including updates and hard deletes (`__op: u` / `__op: d`, `__deleted: true`).
+- Connector versions pinned after the first successful run: Debezium Postgres 3.2.6, Confluent S3 sink 12.1.13.
+- Debezium 3.x removed `delete.handling.mode`; the config now uses `delete.tombstone.handling.mode=rewrite`.
+- Python tests pass, the Airflow DAG loads cleanly, and `dbt parse`/`compile` succeed.
 
-- **Snowflake Terraform provider:** it is pinned to `~> 1.0`, and resource names and preview-feature flags differ between majors.
-- **Connector plugin versions:** `connect/Dockerfile` installs `latest`. Pin them once it works.
+**Not yet verified:** the cloud half (S3 → Snowpipe → Snowflake → dbt → Airflow). Likely first-run tweaks:
+- **Snowflake Terraform provider:** pinned to `~> 1.0`; resource names and preview-feature flags differ between majors.
 - **dbt contract types:** if Snowflake reports a type mismatch on `fct_reconciliation`, align the `data_type` in `_marts.yml`.
 
 ## Roadmap
