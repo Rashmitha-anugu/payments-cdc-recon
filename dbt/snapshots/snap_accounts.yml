@@ -1,0 +1,12 @@
+# Classic dbt snapshot: SCD2 by polling current state on each run.
+# Compare with marts/dim_accounts, which builds SCD2 straight from CDC events
+# and therefore also keeps changes that happen *between* runs.
+snapshots:
+  - name: snap_accounts
+    relation: ref('int_accounts_current')
+    config:
+      schema: snapshots
+      unique_key: account_id
+      strategy: timestamp
+      updated_at: updated_at
+      hard_deletes: invalidate

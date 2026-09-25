@@ -1,0 +1,115 @@
+version: 2
+
+models:
+  - name: dim_accounts
+    description: SCD Type 2 account history built directly from CDC events.
+    columns:
+      - name: account_version_key
+        data_tests: [unique, not_null]
+      - name: account_id
+        data_tests: [not_null]
+
+  - name: fct_transactions
+    description: Current state of every transaction; deletes kept as is_deleted = true.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_accounts')
+                field: account_id
+
+  - name: fct_reconciliation
+    description: Ledger vs processor settlement, one row per transaction id, with break classification.
+    config:
+      contract:
+        enforced: true   # downstream finance reports depend on this shape
+    columns:
+      - name: transaction_id
+        data_type: varchar
+        constraints: [{ type: not_null }]
+        data_tests: [unique]
+      - name: account_id
+        data_type: number
+      - name: ledger_status
+        data_type: varchar
+      - name: currency
+        data_type: varchar
+      - name: ledger_amount
+        data_type: number(12, 2)
+      - name: settled_amount
+        data_type: number(12, 2)
+      - name: settlement_count
+        data_type: number
+      - name: transaction_date
+        data_type: date
+      - name: batch_date
+        data_type: date
+      - name: business_date
+        data_type: date
+        constraints: [{ type: not_null }]
+      - name: break_type
+        data_type: varchar
+        constraints: [{ type: not_null }]
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - MATCHED
+                  - AWAITING_SETTLEMENT
+                  - MISSING_SETTLEMENT
+                  - AMOUNT_MISMATCH
+                  - DUPLICATE_SETTLEMENT
+                  - ORPHAN_SETTLEMENT
+                  - STATUS_MISMATCH
+      - name: is_break
+        data_type: boolean
+      - name: amount_at_risk
+        data_type: number(12, 2)
+
+  - name: rpt_reconciliation_daily
+    description: Daily reconciliation scorecard used by the Airflow break-rate check and the dashboard.
+    columns:
+      - name: business_date
+        data_tests: [unique, not_null]
+
+unit_tests:
+  - name: reconciliation_classifies_every_break_type
+    description: One ledger/settlement pair per scenario; excluded rows (pending, failed-unsettled, deleted) must not appear.
+    model: fct_reconciliation
+    overrides:
+      vars:
+        recon_as_of_date: "2026-01-10"
+        settlement_lag_days: 1
+    given:
+      - input: ref('fct_transactions')
+        rows:
+          - { transaction_id: t_match,    account_id: 1, amount: 10.00, currency: USD, status: succeeded, transaction_date: "2026-01-08", is_deleted: false }
+          - { transaction_id: t_missing,  account_id: 1, amount: 20.00, currency: USD, status: succeeded, transaction_date: "2026-01-08", is_deleted: false }
+          - { transaction_id: t_await,    account_id: 1, amount: 5.00,  currency: USD, status: succeeded, transaction_date: "2026-01-10", is_deleted: false }
+          - { transaction_id: t_dup,      account_id: 1, amount: 7.00,  currency: USD, status: succeeded, transaction_date: "2026-01-08", is_deleted: false }
+          - { transaction_id: t_mismatch, account_id: 1, amount: 30.00, currency: USD, status: refunded,  transaction_date: "2026-01-08", is_deleted: false }
+          - { transaction_id: t_fail_set, account_id: 1, amount: 12.00, currency: USD, status: failed,    transaction_date: "2026-01-08", is_deleted: false }
+          - { transaction_id: t_failed,   account_id: 1, amount: 3.00,  currency: USD, status: failed,    transaction_date: "2026-01-08", is_deleted: false }
+          - { transaction_id: t_pending,  account_id: 1, amount: 4.00,  currency: USD, status: pending,   transaction_date: "2026-01-10", is_deleted: false }
+          - { transaction_id: t_deleted,  account_id: 1, amount: 8.00,  currency: USD, status: succeeded, transaction_date: "2026-01-08", is_deleted: true }
+      - input: ref('stg_processor__settlements')
+        rows:
+          - { settlement_id: s1, transaction_id: t_match,    amount: 10.00, currency: USD, batch_date: "2026-01-08" }
+          - { settlement_id: s2, transaction_id: t_dup,      amount: 7.00,  currency: USD, batch_date: "2026-01-08" }
+          - { settlement_id: s3, transaction_id: t_dup,      amount: 7.00,  currency: USD, batch_date: "2026-01-08" }
+          - { settlement_id: s4, transaction_id: t_mismatch, amount: 29.50, currency: USD, batch_date: "2026-01-08" }
+          - { settlement_id: s5, transaction_id: t_fail_set, amount: 12.00, currency: USD, batch_date: "2026-01-08" }
+          - { settlement_id: s6, transaction_id: t_orphan,   amount: 9.99,  currency: USD, batch_date: "2026-01-08" }
+    expect:
+      rows:
+        - { transaction_id: t_match,    break_type: MATCHED,              amount_at_risk: 0.00 }
+        - { transaction_id: t_missing,  break_type: MISSING_SETTLEMENT,   amount_at_risk: 20.00 }
+        - { transaction_id: t_await,    break_type: AWAITING_SETTLEMENT,  amount_at_risk: 0.00 }
+        - { transaction_id: t_dup,      break_type: DUPLICATE_SETTLEMENT, amount_at_risk: 7.00 }
+        - { transaction_id: t_mismatch, break_type: AMOUNT_MISMATCH,      amount_at_risk: 0.50 }
+        - { transaction_id: t_fail_set, break_type: STATUS_MISMATCH,      amount_at_risk: 12.00 }
+        - { transaction_id: t_orphan,   break_type: ORPHAN_SETTLEMENT,    amount_at_risk: 9.99 }

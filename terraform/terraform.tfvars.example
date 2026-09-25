@@ -1,0 +1,6 @@
+aws_region                  = "us-east-1"
+snowflake_organization_name = "MYORG"
+snowflake_account_name      = "MYACCOUNT"
+snowflake_admin_user        = "YOUR_USER"
+service_user_rsa_public_key = "MIIBIjANBgkqh..." # from `make keys`
+# snowpipe_sqs_arn          = "arn:aws:sqs:us-east-1:123456789012:sf-snowpipe-..."  # second apply

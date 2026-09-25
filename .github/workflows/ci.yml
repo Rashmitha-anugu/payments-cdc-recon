@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r generator/requirements.txt pytest ruff
+      - run: ruff check generator airflow
+      - run: pytest -q generator/tests
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: terraform } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate
+
+  dbt:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: dbt } }
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: PAYMENTS_SVC
+      SNOWFLAKE_PRIVATE_KEY_PATH: ${{ github.workspace }}/svc_key.p8
+      PR_NUMBER: ${{ github.event.pull_request.number || 'main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install dbt-core==1.12.5 dbt-snowflake==1.12.1
+
+      # Always runs, no credentials needed: catches broken refs, YAML, and Jinja.
+      - name: dbt parse
+        run: dbt parse --profiles-dir .
+        env: { SNOWFLAKE_ACCOUNT: placeholder-account }
+
+      # Full build + tests into an isolated ci_pr_<n> schema, only when secrets are configured.
+      - name: dbt build (CI schema)
+        if: env.SNOWFLAKE_ACCOUNT != ''
+        run: |
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$SNOWFLAKE_PRIVATE_KEY_PATH"
+          dbt build --profiles-dir . --target ci

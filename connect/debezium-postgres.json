@@ -1,0 +1,28 @@
+{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "tasks.max": "1",
+  "database.hostname": "postgres",
+  "database.port": "5432",
+  "database.user": "${POSTGRES_USER}",
+  "database.password": "${POSTGRES_PASSWORD}",
+  "database.dbname": "${POSTGRES_DB}",
+  "topic.prefix": "payments",
+  "plugin.name": "pgoutput",
+  "slot.name": "payments_cdc",
+  "publication.name": "payments_pub",
+  "publication.autocreate.mode": "filtered",
+  "table.include.list": "public.accounts,public.transactions",
+  "snapshot.mode": "initial",
+  "decimal.handling.mode": "string",
+  "tombstones.on.delete": "false",
+
+  "transforms": "unwrap",
+  "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+  "transforms.unwrap.add.fields": "op,table,lsn,source.ts_ms",
+  "transforms.unwrap.delete.tombstone.handling.mode": "rewrite",
+
+  "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "key.converter.schemas.enable": "false",
+  "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "value.converter.schemas.enable": "false"
+}

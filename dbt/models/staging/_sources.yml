@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: raw
+    database: PAYMENTS
+    schema: RAW
+    config:
+      loaded_at_field: loaded_at
+    tables:
+      - name: cdc_events
+        description: Debezium change events (all topics) landed by Snowpipe. One row per change.
+        config:
+          freshness:
+            warn_after: { count: 30, period: minute }
+            error_after: { count: 2, period: hour }
+      - name: settlements
+        description: Daily processor settlement files landed by Snowpipe.
+        config:
+          freshness:
+            warn_after: { count: 26, period: hour }
+            error_after: { count: 50, period: hour }

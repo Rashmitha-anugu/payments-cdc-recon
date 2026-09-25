@@ -1,0 +1,19 @@
+payments:
+  target: dev
+  outputs:
+    dev: &base
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER', 'PAYMENTS_SVC') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      role: PAYMENTS_TRANSFORMER
+      warehouse: PAYMENTS_WH
+      database: PAYMENTS
+      schema: "dev_{{ env_var('DBT_USER', 'local') }}"
+      threads: 4
+    ci:
+      <<: *base
+      schema: "ci_pr_{{ env_var('PR_NUMBER', '0') }}"
+    prod:
+      <<: *base
+      schema: analytics

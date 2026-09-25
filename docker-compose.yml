@@ -1,0 +1,104 @@
+name: payments-cdc
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Logical decoding is what makes CDC possible.
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4"]
+    ports: ["5432:5432"]
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+  connect:
+    build: ./connect
+    depends_on:
+      kafka: { condition: service_started }
+      postgres: { condition: service_healthy }
+    ports: ["8083:8083"]
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_GROUP_ID: payments-connect
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect_configs
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect_offsets
+      CONNECT_STATUS_STORAGE_TOPIC: _connect_status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+      # Used by the S3 sink via the default AWS credential chain.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on: [kafka, connect]
+    ports: ["8081:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://connect:8083
+
+  airflow:
+    profiles: ["airflow"]
+    build: ./airflow
+    command: standalone
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      # Local dev only: skip the login screen.
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+      AIRFLOW_CONN_SNOWFLAKE_DEFAULT: >-
+        {"conn_type": "snowflake", "login": "${SNOWFLAKE_USER}",
+         "extra": {"account": "${SNOWFLAKE_ACCOUNT}", "warehouse": "PAYMENTS_WH",
+                   "database": "PAYMENTS", "role": "PAYMENTS_TRANSFORMER",
+                   "private_key_file": "/opt/airflow/keys/svc_key.p8"}}
+      PG_DSN: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      S3_BUCKET: ${S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT}
+      SNOWFLAKE_USER: ${SNOWFLAKE_USER}
+      SNOWFLAKE_PRIVATE_KEY_PATH: /opt/airflow/keys/svc_key.p8
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./dbt:/opt/airflow/dbt
+      - ./generator:/opt/airflow/generator
+      - ./keys:/opt/airflow/keys:ro
+
+volumes:
+  pgdata:

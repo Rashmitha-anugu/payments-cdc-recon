@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: stg_cdc__accounts
+    columns:
+      - name: account_id
+        data_tests: [not_null]
+      - name: cdc_lsn
+        data_tests: [not_null]
+      - name: cdc_op
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["r", "c", "u", "d"]
+
+  - name: stg_cdc__transactions
+    columns:
+      - name: transaction_id
+        data_tests: [not_null]
+      - name: cdc_lsn
+        data_tests: [not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["pending", "succeeded", "failed", "refunded"]
+
+  - name: stg_processor__settlements
+    columns:
+      - name: settlement_id
+        data_tests: [unique, not_null]
+      - name: transaction_id
+        data_tests: [not_null]
+      - name: amount
+        data_tests: [not_null]

@@ -1,0 +1,27 @@
+name: payments_recon
+version: "1.0.0"
+config-version: 2
+profile: payments
+
+model-paths: ["models"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+vars:
+  # Processor files for business date D arrive on D+1.
+  settlement_lag_days: 1
+  # Airflow passes the run date; left null, models use current_date.
+  recon_as_of_date: null
+
+models:
+  payments_recon:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
