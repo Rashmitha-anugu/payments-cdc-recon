@@ -49,6 +49,20 @@ flowchart LR
 | Infrastructure | Terraform | S3, IAM (least-privilege writer and reader), Snowflake warehouse, database, RBAC, storage integration, service user |
 | CI | GitHub Actions | ruff + pytest, `terraform fmt/validate`, `dbt parse` always, `dbt build` into a per-PR schema when secrets exist |
 
+### Local CDC in action
+
+<img width="771" height="191" alt="image" src="https://github.com/user-attachments/assets/f1ae91b7-ae63-4162-b4b5-3c0945bb6a61" />
+<img width="779" height="242" alt="image" src="https://github.com/user-attachments/assets/e8aab9d7-6365-4bbb-ae04-c7e179578a04" />
+
+
+<img width="784" height="427" alt="image" src="https://github.com/user-attachments/assets/f4537a82-7e5c-4a0f-b197-67e1c8b91c73" />
+
+### Local CDC in action
+
+![Kafka topics populated by Debezium](https://github.com/user-attachments/assets/...)
+
+![Delete event with __op, __lsn and __deleted](https://github.com/user-attachments/assets/...)
+
 ## What the reconciliation catches
 
 `fct_reconciliation` has one row per transaction id seen on either side:
