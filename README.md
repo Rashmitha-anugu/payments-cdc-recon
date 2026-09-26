@@ -152,16 +152,20 @@ airflow/        Airflow 3 image + daily reconciliation DAG
 
 ## Status and known gaps
 
-**Verified so far**
-- Local CDC path runs end to end: Postgres → Debezium → Kafka, including updates and hard deletes (`__op: u` / `__op: d`, `__deleted: true`).
-- Connector versions pinned after the first successful run: Debezium Postgres 3.2.6, Confluent S3 sink 12.1.13.
-- Debezium 3.x removed `delete.handling.mode`; the config now uses `delete.tombstone.handling.mode=rewrite`.
-- Python tests pass, the Airflow DAG loads cleanly, and `dbt parse`/`compile` succeed.
+**Verified end to end**
+- Local CDC: Postgres → Debezium 3.2.6 → Kafka, including updates and hard deletes (`__op: u` / `__op: d`, `__deleted: true`).
+- Cloud: Kafka → S3 sink (12.1.13) → S3 → Snowpipe auto-ingest → Snowflake (28k+ CDC events loaded).
+- Terraform: both passes applied cleanly (20 resources, then the S3 → Snowpipe notification), Snowflake provider 1.2.3, AWS provider 6.x.
+- dbt: `dbt build` 33/33 passing on real data, including the enforced contract and the break-classification unit test.
+- Reconciliation: 703 of 703 injected breaks detected across 8 days.
 
-**Not yet verified:** the cloud half (S3 → Snowpipe → Snowflake → dbt → Airflow). Likely first-run tweaks:
-- **Snowflake Terraform provider:** pinned to `~> 1.0`; resource names and preview-feature flags differ between majors.
-- **dbt contract types:** if Snowflake reports a type mismatch on `fct_reconciliation`, align the `data_type` in `_marts.yml`.
+**Fixes found during the first real run**
+- Debezium 3.x removed `delete.handling.mode`; now uses `delete.tombstone.handling.mode=rewrite`.
+- The Makefile loads `.env` (pipeline credentials) into every target, so the Terraform targets explicitly unset those keys. Otherwise Terraform would run as the limited pipeline user instead of the admin.
 
+**Not yet verified**
+- The Airflow DAG running end to end (it loads cleanly, but hasn't been triggered against live Snowflake).
+- Per-transaction scoring against `ground_truth/` (counts match; precision/recall per transaction is the next step).
 ## Roadmap
 
 - [ ] Score reconciliation against `ground_truth/` (precision and recall per break type) as a dbt model
