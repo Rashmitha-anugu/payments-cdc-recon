@@ -21,7 +21,7 @@ keys:            ## generate key pairs for your Snowflake admin user and the ser
 	done
 
 tf-apply:        ## provision AWS + Snowflake
-	cd terraform && terraform init -upgrade && terraform apply
+	cd terraform && env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY sh -c "terraform init -upgrade && terraform apply"
 
 up:              ## start Postgres, Kafka, Kafka Connect, Kafka UI
 	docker compose up -d --build postgres kafka connect kafka-ui
@@ -62,4 +62,4 @@ down:            ## stop containers and delete local volumes
 	docker compose --profile airflow down -v
 
 destroy:         ## tear down all cloud resources
-	cd terraform && terraform destroy
+	cd terraform && env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY terraform destroy
