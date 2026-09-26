@@ -90,7 +90,7 @@ The settlement generator injects each break type at a known rate and writes an a
   
 ## Quickstart
 
-Prerequisites: Docker, Terraform ≥ 1.6, Python 3.12, an AWS account, a Snowflake account (the 30-day trial works), and the [Snowflake CLI](https://docs.snowflake.com/en/developer-guide/snowflake-cli/index) (`snow`).
+Prerequisites: Docker, Terraform ≥ 1.6, Python 3.12, an AWS account, a Snowflake account (the 30-day trial works), and the [Snowflake CLI](https://docs.snowflake.com/en/developer-guide/snowflake-cli/index) (`snow`). **On Windows, run everything inside WSL2 (Ubuntu)** with Docker Desktop's WSL integration switched on; `make` and `envsubst` aren't available in Git Bash or PowerShell.
 
 ```bash
 cp .env.example .env
