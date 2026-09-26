@@ -87,6 +87,9 @@ The settlement generator injects each break type at a known rate and writes an a
 - **$35,639** of revenue at risk flagged across missing, duplicate, mismatched, orphan and status-mismatch settlements
 - `dbt build`: **33/33** models and tests passing
 - Same-day transactions correctly held as `AWAITING_SETTLEMENT` until the T+1 file arrives
+
+  <img width="565" height="422" alt="image" src="https://github.com/user-attachments/assets/02dd7567-31dd-406e-927e-918375955623" />
+
   
 ## Quickstart
 
