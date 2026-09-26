@@ -79,6 +79,15 @@ flowchart LR
 
 The settlement generator injects each break type at a known rate and writes an answer key to `s3://…/ground_truth/`. This lets you measure detection precision and recall against it rather than assuming it works.
 
+### Results (first end-to-end run)
+
+8 days of synthetic ledger data (26,542 transactions), streamed through the full pipeline into Snowflake:
+
+- **703 of 703** injected breaks detected, matching the generator's answer key on every day
+- **$35,639** of revenue at risk flagged across missing, duplicate, mismatched, orphan and status-mismatch settlements
+- `dbt build`: **33/33** models and tests passing
+- Same-day transactions correctly held as `AWAITING_SETTLEMENT` until the T+1 file arrives
+  
 ## Quickstart
 
 Prerequisites: Docker, Terraform ≥ 1.6, Python 3.12, an AWS account, a Snowflake account (the 30-day trial works), and the [Snowflake CLI](https://docs.snowflake.com/en/developer-guide/snowflake-cli/index) (`snow`).
